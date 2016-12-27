@@ -38,9 +38,9 @@ GET_TEXT:
 
     lea     (%rsi, %rax), %rsi # rsi = end of input
 
-    xor     %rdx, %rdx
-    movb    (space), %dl
-    mov     %rdx, (%rsi)  # set space in the end
+    lea     -1(%rsi), %rdi
+    movb    $0x20, (%rdi)  # set space in the end
+    movb    $10,   (%rsi)  # set EOL in the end
 
     pop     %rsi
     pop     %rdx
@@ -69,13 +69,33 @@ CHECK_TEXT:
         
 START_ALGORITHM:
 #   Кладем в rax адрес байта за текущим
-    lea     (%rdi),  %rax
-# Вычитаем 2 т.к. в конце мы будем за пробелом и переносом строки
-    sub     $2,      %rax
+    lea     1(%rdi),  %rax
+# Сравниваем с символом конца строки
     mov     (%rax),  %bl
-    cmpb    $10,  %bl
+    cmpb    $10,     %bl
     je      No
 
+    repe cmpsb
+# Если был достигнут конец слова, то были пропущены ещё и пробелы
+# и первый символ слова
+    dec  %rdi
+    dec  %rsi
+
+# if rdi[i - 1] != ' ': goto SKIP;
+    mov     -1(%rdi),  %bl
+    cmp     space,   %bl
+    jne     SKIP
+
+# if rsi[i - 1] != ' ': goto SKIP;
+    mov     -1(%rsi),  %bl
+    cmp     space,   %bl
+    jne     SKIP
+
+# if rdi[i - 1] == ' ' && rsi[i - 1] == ' ': goto Yes:
+    jmp     Yes
+
+    SKIP:
+    
 No:
     mov     $no_text,  %rsi
     mov     $no_len,   %rdx
