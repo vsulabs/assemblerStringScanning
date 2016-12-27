@@ -1,5 +1,6 @@
 old/
 
-/clike_backup.s
-/a.out
-/t3.o
+clike_backup.s
+a.out
+t3.o
+t3
