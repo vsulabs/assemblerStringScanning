@@ -8,10 +8,12 @@ space:
     .string " "
 zero:
     .string "0"
-answ_yes:
+yes_text:
     .string "string has two similar words together"
-answ_no:
+.set yes_len, . - yes_text
+no_text:
     .string "string does not contain two words together"
+.set no_len, . - no_text
 msg_input:
     .string "please, input string: "
 .bss
@@ -53,148 +55,41 @@ EXIT:
 
 
 CHECK_TEXT:
-    pushq  %rbp
-    movq    %rsp,       %rbp
+    pushq   %rbp
+    movq    %rsp,   %rbp
 
-#       ставим один из указателей на начало строки
-    subq    $48,        %rsp
-    movq    %rdi,       -40(%rbp)
-    movq    %fs:40,     %rax
-    movq    %rax,       -8(%rbp)
-    xorl    %eax,       %eax
+#       ставим второй из указателей(rsi) на начало строки
+    lea     (%rdi), %rsi
 
-#       и второй указатель на начало той же строки
-    movq    -40(%rbp),  %rax
-    movq    %rax,       -16(%rbp)
-    movq    -40(%rbp),  %rax
-    movq    %rax,       -24(%rbp)
-    movl    $0,         -28(%rbp)
-#       второй будет идти впереди, и обязан проверять
+#       Второй будет идти впереди, и обязан проверять
 #       что не конец строки
-
-    skip_until_not_space:
-#           пропускаем первое слово до пробела
-            movq        -24(%rbp),      %rax
-            addq        $1,             %rax
-            movq        %rax,           -24(%rbp)
-            movq        -24(%rbp),      %rax
-            movsbl      (%rax),         %eax
-            
-            cmpb        $32,            %al
-            je          START_ALGORITHM
-            jmp         skip_until_not_space
+#       Пропускаем одно слово до пробела
+    mov     space,  %ax
+    repne   scasb
         
 START_ALGORITHM:
-#       делаем еще шаг указателем два. 
-#       он будет указывать либо на 2 слово либо на конец строки
-    movq    -24(%rbp),  %rax
-    addq    $1,         %rax
-    movq    %rax,       -24(%rbp)
-infty_circle:           # основной цикл. 
-    mov     -24(%rbp),  %rax
-    movzbl  (%rax),     %eax
-    cmpb    $10,        %al             # смотрим, что не конец строки
-
-#   --------Условие выхода из цикла!
+#   Кладем в rax адрес байта за текущим
+    lea     (%rdi),  %rax
+# Вычитаем 2 т.к. в конце мы будем за пробелом и переносом строки
+    sub     $2,      %rax
+    mov     (%rax),  %bl
+    cmpb    $10,  %bl
     je      No
-    movb    $1,         -29(%rbp)
-#       вторым указателем становимся на начало следующего слова
-    
-    scan_words_together:
-#           сделали шаг первым словом, посмотрели что не пробел
-            movq        -24(%rbp),      %rax
-            movzbl      (%rax),         %eax
-            cmpb        $32,            %al
-            je          calc_res
-#           шаг вторым словом, смтрим что не достигли пробела
-            movq        -16(%rbp),      %rax
-            movzbl      (%rax),         %eax
-            cmpb        $32,            %al
-            je          calc_res
-            
-            movzbl      -29(%rbp),      %edx
-            movq        -24(%rbp),      %rax
-            movzbl      (%rax),         %ecx
-            movq        -16(%rbp),      %rax
-            movzbl      (%rax),         %eax
-            cmpb        %al,            %cl
-            sete        %al
-            movzbl      %al,            %eax
-            andl        %edx,           %eax
-            setne       %al            
-            movb        %al,            -29(%rbp)
-            movq        -24(%rbp),      %rax
-# flag &= *ptr1 == *prt2_to_next_wrd            
-            addq        $1,             %rax
-            movq        %rax,           -24(%rbp)
-            addq        $1,             -16(%rbp)
-            jmp         scan_words_together
-
-calc_res:
-    movzbl  -29(%rbp),  %edx
-# смотрим, что после пропуска букв оба слова стоят на пробеле
-# если хотя бы одно не на пробеле, флагу присваиваем 0 (false)
-# и идем дальше
-
-    movq    -16(%rbp),  %rax
-    movzbl  (%rax),     %eax
-    cmpb    $32,        %al
-    jne     set_bad_flag            # ушли сюда, если не закончилось слово 1
-
-    movq    -24(%rbp),  %rax
-    movzbl  (%rax),     %eax
-    cmpb    $32,        %al
-    jne     set_bad_flag            # ушли сюда, если не закончилось слово 2
-
-    movl    $1,         %eax        # flag is ok
-    jmp     resume_iter
-
-set_bad_flag:                       
-    movl    $0,         %eax
-resume_iter:                               
-    movzbl  %al,        %eax
-    andl    %edx,       %eax
-    testl   %eax,       %eax
-    setne   %al
-
-    movb    %al,        -29(%rbp)
-    cmpb    $0,         -29(%rbp)
-    je      skip_first_ptr_tail            
-    movl    $1,         -28(%rbp)
-    jmp     Yes                           
-#   --------Условие выхода из цикла!
-    skip_first_ptr_tail:                    
-            addq        $1,         -16(%rbp)
-            movq        -16(%rbp),  %rax
-            subq        $1,         %rax
-            movzbl      (%rax),     %eax
-            cmpb        $32,        %al     # еще не достигли пробела?
-            je          same_actions_for_second_ptr
-            jmp         skip_first_ptr_tail
-
-    same_actions_for_second_ptr:
-            movq        -24(%rbp),  %rax
-            addq        $1,         %rax
-            movq        %rax,       -24(%rbp)
-            movq        -24(%rbp),  %rax
-            subq        $1,         %rax
-            cmpb        $32,        %al
-            je          infty_circle
-            jmp         same_actions_for_second_ptr
-            
 
 No:
-    movb    $0,     (%rsp)
+    mov     $no_text,  %rsi
+    mov     $no_len,   %rdx
     jmp quit_proc
 Yes:
-    movb    $1,     (%rsp)
-quit_proc:
-    mov     $1,     %rax
-    mov     $1,     %rdi
-    mov     %rsp,   %rsi
-    mov     $1,     %rdx
+    mov     $yes_text, %rsi
+    mov     $yes_len,  %rdx
 
+quit_proc:
+    mov     $1,       %rax
+    mov     $1,       %rdi
     syscall
+
+    pop     %rbp
     ret
 
 
