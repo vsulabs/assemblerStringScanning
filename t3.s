@@ -68,18 +68,28 @@ CHECK_TEXT:
     repne   scasb
         
 START_ALGORITHM:
-#   Кладем в rax адрес байта за текущим
-    lea     1(%rdi),  %rax
+#   Кладем в rax адрес текущего байта
+    lea     (%rdi),  %rax
 # Сравниваем с символом конца строки
     mov     (%rax),  %bl
     cmpb    $10,     %bl
     je      No
 
+# Сохраняем начало одного слова для последующей проверки
+# Т.к. инкремент происходит синхронно, проверять оба нет нужды
+    pushq  %rdi
+
+# Пропустить одинаковую часть слов
     repe cmpsb
 # Если был достигнут конец слова, то были пропущены ещё и пробелы
 # и первый символ слова
     dec  %rdi
     dec  %rsi
+
+# Если указатель не сдвинулся
+    popq    %rcx
+    cmp     %rcx,   %rdi
+    je      SKIP
 
 # if rdi[i - 1] != ' ': goto SKIP;
     mov     -1(%rdi),  %bl
@@ -95,6 +105,21 @@ START_ALGORITHM:
     jmp     Yes
 
     SKIP:
+        mov     space,  %ax
+        cmpb    $0x20,  (%rdi)
+        repne scasb
+
+        pushq    %rdi
+        mov     %rsi,  %rdi
+        mov     space,  %ax
+        cmpb    $0x20,  (%rdi)
+        repne scasb
+        mov     %rdi,  %rsi
+
+        popq %rdi
+
+
+    jmp START_ALGORITHM
     
 No:
     mov     $no_text,  %rsi
